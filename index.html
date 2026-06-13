@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Klotski 华容道</title>
+<style>
+:root{
+  --bg:#f4f1ea; --panel:#fffdf8; --ink:#2b2620; --sub:#8a7f6e;
+  --line:#e6ddcb; --shadow:0 10px 30px rgba(70,55,30,.12);
+  --board:#d8c8a8; --slot:#cdbb95; --accent:#b8443a;
+  --cao:#c0392b; --cao2:#e74c3c; --hero:#2c6e8f; --hero2:#3a8fb7;
+  --guan:#2e8b57; --guan2:#3fae6b; --pawn:#9b8666; --pawn2:#b39a74;
+  --ok:#3a8a4f; --gold:#d4a843;
+}
+[data-theme="dark"]{
+  --bg:#171410; --panel:#221d17; --ink:#ece4d6; --sub:#9a8d78;
+  --line:#352d23; --shadow:0 10px 30px rgba(0,0,0,.45);
+  --board:#3a3024; --slot:#2c241b; --accent:#e07a5f;
+  --cao:#c0392b; --cao2:#e05a4d; --hero:#3a7fa0; --hero2:#4fa3c7;
+  --guan:#3a9c63; --guan2:#4fbd7d; --pawn:#7d6b50; --pawn2:#998263;
+  --ok:#4faa63; --gold:#e0bf5a;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+  display:flex;flex-direction:column;align-items:center;
+  padding:18px 14px 40px;min-height:100%;
+}
+.top{width:100%;max-width:440px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{font-size:26px;letter-spacing:.5px}
+.brand .cn{font-size:15px;color:var(--sub);font-weight:600}
+.topbtns{display:flex;gap:8px}
+.iconbtn{border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  width:40px;height:40px;border-radius:11px;font-size:18px;cursor:pointer;box-shadow:var(--shadow);
+  display:flex;align-items:center;justify-content:center;transition:.12s;flex:none}
+.iconbtn:hover{border-color:var(--accent);color:var(--accent)}
+.wrap{width:100%;max-width:440px;display:flex;justify-content:center}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:16px}
+.stage{display:flex;flex-direction:column;align-items:center;width:100%}
+.lvbar{width:100%;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;
+  padding:8px 12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;cursor:pointer}
+.lvbar-nm{font-weight:700;font-size:16px}
+.lvbar-tip{font-size:12px;color:var(--accent);font-weight:600}
+
+.hud{display:flex;gap:10px;width:100%;margin-bottom:14px;flex-wrap:wrap}
+.stat{flex:1;min-width:84px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 10px;text-align:center}
+.stat .k{font-size:11px;color:var(--sub);letter-spacing:1px}
+.stat .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:12px;color:var(--sub);font-weight:500}
+
+#boardWrap{position:relative;padding:14px 14px 0;background:linear-gradient(160deg,var(--board),var(--slot));
+  border-radius:16px;box-shadow:inset 0 2px 8px rgba(0,0,0,.18);touch-action:none;user-select:none;
+  width:min(400px,calc(100vw - 60px))}
+#board{position:relative}
+.cellbg{position:absolute;background:rgba(0,0,0,.06);border-radius:8px}
+[data-theme="dark"] .cellbg{background:rgba(255,255,255,.04)}
+.piece{position:absolute;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  cursor:grab;color:#fff;font-weight:800;letter-spacing:2px;
+  transition:left .14s cubic-bezier(.34,1.2,.5,1),top .14s cubic-bezier(.34,1.2,.5,1),box-shadow .15s,transform .1s;
+  box-shadow:0 4px 0 rgba(0,0,0,.22),0 6px 14px rgba(0,0,0,.22);overflow:hidden}
+.piece:active{cursor:grabbing}
+.piece .lbl{writing-mode:vertical-rl;text-orientation:upright;font-size:clamp(15px,4.4vw,24px);line-height:1.05;pointer-events:none}
+.piece.h .lbl{writing-mode:horizontal-tb}
+.piece.t-C{background:linear-gradient(150deg,var(--cao2),var(--cao));font-size:1.2em}
+.piece.t-H{background:linear-gradient(150deg,var(--guan2),var(--guan))}
+.piece.t-V{background:linear-gradient(150deg,var(--hero2),var(--hero))}
+.piece.t-S{background:linear-gradient(150deg,var(--pawn2),var(--pawn))}
+.piece.sel{outline:3px solid var(--gold);outline-offset:-1px;box-shadow:0 0 0 3px rgba(212,168,67,.4),0 6px 16px rgba(0,0,0,.3);z-index:5}
+.piece.hintflash{animation:hint .55s ease 2}
+@keyframes hint{0%,100%{transform:scale(1)}50%{transform:scale(.9);filter:brightness(1.4)}}
+.piece.t-C .lbl{font-size:clamp(20px,6vw,34px)}
+
+.exit{display:flex;align-items:center;justify-content:center;gap:6px;color:var(--sub);
+  font-size:12px;letter-spacing:3px;padding:6px 0 2px;position:relative}
+.exitgap{position:absolute;bottom:0;height:6px;border-radius:3px;background:var(--accent);opacity:.85}
+
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:center;width:100%}
+button.act{border:1px solid var(--line);background:var(--bg);color:var(--ink);
+  border-radius:11px;padding:9px 14px;font-size:14px;font-weight:600;cursor:pointer;transition:.12s}
+button.act:hover{border-color:var(--accent);color:var(--accent)}
+button.act:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover{filter:brightness(1.06);color:#fff}
+
+.drawer-body h3{font-size:13px;color:var(--sub);letter-spacing:1px;margin:18px 0 10px;text-transform:uppercase}
+.drawer-body h3:first-child{margin-top:0}
+.levels{display:flex;flex-direction:column;gap:8px}
+.lv{text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:10px 12px;cursor:pointer;transition:.12s}
+.lv:hover{border-color:var(--accent)}
+.lv.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--bg))}
+.lv .nm{font-weight:700;font-size:15px}
+.lv .ds{font-size:12px;color:var(--sub);margin-top:2px}
+.lv .bst{font-size:11px;color:var(--ok);margin-top:4px;font-weight:600}
+
+.speed{display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px;color:var(--sub)}
+.speed input{flex:1}
+.help{font-size:12px;color:var(--sub);line-height:1.7}
+.help b{color:var(--ink)}
+
+#drawerBg{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:.25s;z-index:70}
+#drawerBg.open{opacity:1;pointer-events:auto}
+#drawer{position:fixed;top:0;right:0;height:100%;width:min(340px,86vw);background:var(--panel);
+  border-left:1px solid var(--line);box-shadow:-12px 0 36px rgba(0,0,0,.25);
+  transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);z-index:71;
+  display:flex;flex-direction:column}
+#drawer.open{transform:translateX(0)}
+.drawer-hd{display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--line)}
+.drawer-hd h2{font-size:18px}
+.drawer-body{padding:16px;overflow-y:auto}
+
+#toast{position:fixed;left:50%;top:24px;transform:translate(-50%,-20px);background:var(--ink);color:var(--bg);
+  padding:10px 18px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:50}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+#win{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+#win.show{display:flex}
+.winbox{background:var(--panel);border-radius:20px;padding:28px 30px;text-align:center;max-width:340px;box-shadow:var(--shadow);animation:pop .3s ease}
+@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.winbox h2{font-size:24px;color:var(--accent);margin-bottom:6px}
+.winbox p{color:var(--sub);font-size:14px;margin-bottom:6px}
+.winbox .big{font-size:15px;color:var(--ink);margin:12px 0}
+.winbox .big b{color:var(--gold);font-size:20px}
+.winbox button{margin-top:14px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand"><h1>Klotski</h1><span class="cn">华容道</span></div>
+  <div class="topbtns">
+    <button class="iconbtn" id="gearBtn" title="游戏设置">⚙</button>
+    <button class="iconbtn" id="themeBtn" title="切换主题">◐</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="card stage">
+    <div class="lvbar"><span class="lvbar-nm" id="curLevel">横刀立马</span><span class="lvbar-tip" id="gearTip">⚙ 设置 / 换关</span></div>
+    <div class="hud">
+      <div class="stat"><div class="k">步数 MOVES</div><div class="v" id="hMoves">0</div></div>
+      <div class="stat"><div class="k">用时 TIME</div><div class="v" id="hTime">00:00</div></div>
+      <div class="stat"><div class="k">本关最优 OPT</div><div class="v" id="hOpt">—</div></div>
+    </div>
+
+    <div id="boardWrap">
+      <div id="board"></div>
+      <div class="exit"><span id="exitLabel">华容道出口</span><div class="exitgap" id="exitGap"></div></div>
+    </div>
+
+    <div class="controls">
+      <button class="act" id="btnUndo">↩ 撤销</button>
+      <button class="act" id="btnReset">↻ 重开</button>
+      <button class="act" id="btnHint">💡 提示</button>
+      <button class="act primary" id="btnSolve">▶ 自动求解</button>
+    </div>
+  </div>
+</div>
+
+<div id="drawerBg"></div>
+<aside id="drawer">
+  <div class="drawer-hd">
+    <h2>游戏设置</h2>
+    <button class="iconbtn" id="drawerClose" title="关闭">✕</button>
+  </div>
+  <div class="drawer-body">
+    <h3>选择开局</h3>
+    <div class="levels" id="levels"></div>
+
+    <h3>求解速度</h3>
+    <div class="speed">慢<input type="range" id="speed" min="80" max="700" value="280" step="20">快</div>
+
+    <h3>玩法</h3>
+    <div class="help">
+      <b>目标</b>：把红色 <b>曹操</b>(2×2) 移到底部出口。<br>
+      <b>操作</b>：点击棋子选中，用 <b>方向键</b> 或 <b>拖动</b> 滑入空格。<br>
+      <b>自动求解</b>：用 BFS 计算最少步数并演示。<br>
+      棋子只能滑动、不可跨越或抬起。
+    </div>
+  </div>
+</aside>
+
+<div id="toast"></div>
+<div id="win"><div class="winbox">
+  <h2>曹操脱身！</h2>
+  <p id="winSub">恭喜通关</p>
+  <div class="big">步数 <b id="winMoves">0</b> · 用时 <b id="winTime">00:00</b></div>
+  <p id="winBest"></p>
+  <button class="act primary" id="winClose">再来一局</button>
+</div></div>
+
+<script>
+"use strict";
+
+const BOARD={cols:4,rows:5};
+const EXIT={col:1,row:3};            // 曹操左上角到此即通关(占据 col1-2,row3-4)
+const TYPES={
+  C:{w:2,h:2,label:"曹操"},
+  H:{w:2,h:1,label:"关羽"},
+  V:{w:1,h:2,label:""},              // 五虎将名字由布局指定
+  S:{w:1,h:1,label:"卒"}
+};
+const HERO_NAMES=["张飞","赵云","马超","黄忠"];
+const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
+
+// 角秒帧:每个 piece = {t,c,r}; 角色名运行时分配
+const LEVELS=[
+  {name:"横刀立马",desc:"最经典开局，关羽横亘曹操之下",
+   pieces:[["C",1,0],["V",0,0],["V",3,0],["V",0,2],["V",3,2],
+           ["H",1,2],["S",1,3],["S",2,3],["S",0,4],["S",3,4]]},
+  {name:"层层设防",desc:"双卒贴身，关羽镇守中路",
+   pieces:[["C",1,0],["V",0,0],["V",3,0],["V",0,2],["V",3,2],
+           ["S",1,2],["S",2,2],["H",1,3],["S",0,4],["S",3,4]]},
+  {name:"兵临曹营",desc:"群卒压阵，两角空虚",
+   pieces:[["C",1,0],["V",0,0],["V",3,0],["V",0,2],["V",3,2],
+           ["H",1,2],["S",1,3],["S",2,3],["S",1,4],["S",2,4]]},
+  {name:"近在咫尺",desc:"关羽锁住出口，看似最近实则难",
+   pieces:[["C",1,0],["V",0,0],["V",3,0],["V",0,2],["V",3,2],
+           ["S",1,2],["S",2,2],["S",1,3],["S",2,3],["H",1,4]]}
+];
+
+// 全局状态
+let _level=0, _pieces=[], _selected=null, _history=[];
+let _moves=0, _t0=0, _tick=null, _solving=false, _opt={};
+
+const $=id=>document.getElementById(id);
+const board=$("board"), boardWrap=$("boardWrap");
+
+function cellPx(){
+  // 棋盘格边长 = 容器内宽(减去左右各 14px 内边距) / 列数
+  return Math.floor((boardWrap.clientWidth-28)/BOARD.cols);
+}
+
+function buildLevel(i){
+  _level=i;
+  _pieces=[];
+  let hero=0, id=0;
+  for(const def of LEVELS[i].pieces){
+    if(!def) continue;
+    const [t,c,r]=def;
+    const p={id:id++,t,c,r};
+    p.name = t==="V" ? HERO_NAMES[hero++%4] : TYPES[t].label;
+    _pieces.push(p);
+  }
+  _selected=null;_history=[];_moves=0;_curSlide=null;
+  $("curLevel").textContent=LEVELS[i].name;
+  stopTimer();_t0=0;updateTime();
+  computeOpt();
+  layout();
+  renderLevels();
+  updateHUD();
+}
+
+// ---- 占位/移动判定 ----
+function makeGrid(pieces,skipId){
+  const g=Array.from({length:BOARD.rows},()=>Array(BOARD.cols).fill(-1));
+  for(const p of pieces){
+    if(p.id===skipId) continue;
+    const {w,h}=TYPES[p.t];
+    for(let dr=0;dr<h;dr++)for(let dc=0;dc<w;dc++) g[p.r+dr][p.c+dc]=p.id;
+  }
+  return g;
+}
+function canMove(pieces,p,dx,dy){
+  const {w,h}=TYPES[p.t];
+  const nc=p.c+dx, nr=p.r+dy;
+  if(nc<0||nr<0||nc+w>BOARD.cols||nr+h>BOARD.rows) return false;
+  const g=makeGrid(pieces,p.id);
+  for(let dr=0;dr<h;dr++)for(let dc=0;dc<w;dc++){
+    if(g[nr+dr][nc+dc]!==-1) return false;
+  }
+  return true;
+}
+function isWin(pieces){
+  const cao=pieces.find(p=>p.t==="C");
+  return cao.c===EXIT.col && cao.r===EXIT.row;
+}
+
+// ---- 渲染 ----
+function layout(){
+  const cs=cellPx();
+  board.style.width=cs*BOARD.cols+"px";
+  board.style.height=cs*BOARD.rows+"px";
+  board.innerHTML="";
+  // 背景格
+  for(let r=0;r<BOARD.rows;r++)for(let c=0;c<BOARD.cols;c++){
+    const b=document.createElement("div");
+    b.className="cellbg";
+    b.style.cssText=`left:${c*cs+3}px;top:${r*cs+3}px;width:${cs-6}px;height:${cs-6}px`;
+    board.appendChild(b);
+  }
+  for(const p of _pieces) board.appendChild(makePieceEl(p,cs));
+  // 出口缺口
+  const gap=$("exitGap");
+  gap.style.left=(EXIT.col*cs+6+14)+"px";
+  gap.style.width=(2*cs-12)+"px";
+  $("exitLabel").style.marginLeft="0";
+}
+function makePieceEl(p,cs){
+  const {w,h}=TYPES[p.t];
+  const el=document.createElement("div");
+  el.className="piece t-"+p.t+(p.t==="H"?" h":"")+(_selected===p.id?" sel":"");
+  el.dataset.id=p.id;
+  setPos(el,p,cs);
+  const lbl=document.createElement("span");
+  lbl.className="lbl";lbl.textContent=p.name;
+  el.appendChild(lbl);
+  el.addEventListener("pointerdown",e=>onDown(e,p));
+  return el;
+}
+function setPos(el,p,cs){
+  const {w,h}=TYPES[p.t];
+  el.style.left=(p.c*cs+3)+"px";
+  el.style.top=(p.r*cs+3)+"px";
+  el.style.width=(w*cs-6)+"px";
+  el.style.height=(h*cs-6)+"px";
+}
+function refresh(){
+  const cs=cellPx();
+  for(const el of board.querySelectorAll(".piece")){
+    const p=_pieces.find(x=>x.id===+el.dataset.id);
+    setPos(el,p,cs);
+    el.classList.toggle("sel",_selected===p.id);
+  }
+}
+
+// ---- 交互 ----
+let _dragId=null,_dx0=0,_dy0=0;
+function onDown(e,p){
+  if(_solving) return;
+  _selected=p.id;refresh();
+  _dragId=p.id;_dx0=e.clientX;_dy0=e.clientY;
+  e.target.setPointerCapture?.(e.pointerId);
+}
+function onMove(e){
+  if(_dragId==null||_solving) return;
+  const p=_pieces.find(x=>x.id===_dragId);
+  const cs=cellPx();
+  const dx=e.clientX-_dx0, dy=e.clientY-_dy0;
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(dx>cs*.5 && doStep(p,1,0)) _dx0=e.clientX;
+    else if(dx<-cs*.5 && doStep(p,-1,0)) _dx0=e.clientX;
+  }else{
+    if(dy>cs*.5 && doStep(p,0,1)) _dy0=e.clientY;
+    else if(dy<-cs*.5 && doStep(p,0,-1)) _dy0=e.clientY;
+  }
+}
+function onUp(){_dragId=null;endSlide();}
+window.addEventListener("pointermove",onMove);
+window.addEventListener("pointerup",onUp);
+window.addEventListener("pointercancel",onUp);
+window.addEventListener("keydown",e=>{
+  if(_solving||_selected==null) return;
+  const m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+  if(m){e.preventDefault();const p=_pieces.find(x=>x.id===_selected);doStep(p,m[0],m[1]);}
+});
+
+// 一次连续滑动(同一棋子、同一方向)记为 1 步,与经典"81步"计法一致
+let _curSlide=null;
+function doStep(p,dx,dy){
+  if(!canMove(_pieces,p,dx,dy)) return false;
+  p.c+=dx;p.r+=dy;
+  if(_curSlide&&_curSlide.id===p.id&&_curSlide.dx===dx&&_curSlide.dy===dy){
+    _curSlide.dist++;
+  }else{
+    _curSlide={id:p.id,dx,dy,dist:1};_history.push(_curSlide);_moves++;
+    if(_moves===1) startTimer();
+  }
+  refresh();updateHUD();
+  if(isWin(_pieces)) onWin();
+  return true;
+}
+function applySlide(p,dx,dy,dist){
+  endSlide();
+  p.c+=dx*dist;p.r+=dy*dist;
+  _history.push({id:p.id,dx,dy,dist});_moves++;
+  if(_moves===1) startTimer();
+  refresh();updateHUD();
+  if(isWin(_pieces)) onWin();
+}
+function endSlide(){_curSlide=null;}
+
+function undo(){
+  if(_solving||!_history.length) return;
+  endSlide();
+  const m=_history.pop();
+  const p=_pieces.find(x=>x.id===m.id);
+  p.c-=m.dx*m.dist;p.r-=m.dy*m.dist;
+  _moves=Math.max(0,_moves-1);
+  _selected=p.id;refresh();updateHUD();
+}
+
+// ---- 计时/HUD ----
+function startTimer(){if(_tick)return;_t0=Date.now();_tick=setInterval(updateTime,1000);}
+function stopTimer(){if(_tick){clearInterval(_tick);_tick=null;}}
+function elapsed(){return _t0?Math.floor((Date.now()-_t0)/1000):0;}
+function fmt(s){return String((s/60)|0).padStart(2,"0")+":"+String(s%60).padStart(2,"0");}
+function updateTime(){$("hTime").textContent=fmt(elapsed());}
+function updateHUD(){
+  $("hMoves").textContent=_moves;
+  $("btnUndo").disabled=!_history.length||_solving;
+  const o=_opt[_level];
+  $("hOpt").innerHTML = o==null?"<small>计算中</small>":(o<0?"<small>无解</small>":o);
+}
+
+// ---- BFS 求解器(在规范网格字符串上搜索,棋子按位置而非 id 引用) ----
+const N=BOARD.cols, WIN_A=(EXIT.row+1)*N+EXIT.col, WIN_B=WIN_A+1; // 曹操滑到底排中央两格即胜
+function encodeGrid(ps){
+  const g=Array(N*BOARD.rows).fill(".");
+  for(const p of ps){const {w,h}=TYPES[p.t];
+    for(let dr=0;dr<h;dr++)for(let dc=0;dc<w;dc++) g[(p.r+dr)*N+p.c+dc]=p.t;}
+  return g.join("");
+}
+function parseGrid(key){
+  const seen=Array(key.length).fill(false), ps=[];
+  for(let r=0;r<BOARD.rows;r++)for(let c=0;c<N;c++){
+    const idx=r*N+c, ch=key[idx];
+    if(ch==="."||seen[idx]) continue;
+    const {w,h}=TYPES[ch];
+    for(let dr=0;dr<h;dr++)for(let dc=0;dc<w;dc++) seen[(r+dr)*N+c+dc]=true;
+    ps.push({t:ch,c,r});
+  }
+  return ps;
+}
+function canMoveG(ps,i,dx,dy){
+  const p=ps[i],{w,h}=TYPES[p.t], nc=p.c+dx, nr=p.r+dy;
+  if(nc<0||nr<0||nc+w>N||nr+h>BOARD.rows) return false;
+  for(let k=0;k<ps.length;k++){
+    if(k===i) continue;
+    const q=ps[k],qd=TYPES[q.t];
+    if(nc<q.c+qd.w && nc+w>q.c && nr<q.r+qd.h && nr+h>q.r) return false;
+  }
+  return true;
+}
+function solve(startPieces){
+  const sk=encodeGrid(startPieces);
+  const meta=new Map(); meta.set(sk,{prev:null,move:null});
+  const q=[sk]; let head=0;
+  while(head<q.length){
+    const key=q[head++];
+    if(key[WIN_A]==="C"&&key[WIN_B]==="C") return rebuild(meta,key);
+    const ps=parseGrid(key);
+    for(let i=0;i<ps.length;i++){
+      const oc=ps[i].c, or=ps[i].r;
+      for(const [dx,dy] of DIRS){
+        for(let dist=1;canMoveG(ps,i,dx,dy);dist++){
+          ps[i].c+=dx;ps[i].r+=dy;
+          const nk=encodeGrid(ps);
+          if(!meta.has(nk)){meta.set(nk,{prev:key,move:{fc:oc,fr:or,dx,dy,dist}});q.push(nk);}
+        }
+        ps[i].c=oc;ps[i].r=or;
+      }
+    }
+  }
+  return null;
+}
+function rebuild(meta,key){
+  const out=[];let k=key;
+  while(meta.get(k).prev!==null){out.unshift(meta.get(k).move);k=meta.get(k).prev;}
+  return out;
+}
+function computeOpt(){
+  _opt[_level]=null;updateHUD();
+  setTimeout(()=>{
+    const sol=solve(LEVELS_pieces(_level));
+    _opt[_level]=sol?sol.length:-1;updateHUD();
+    renderLevels();
+  },20);
+}
+function LEVELS_pieces(i){
+  const arr=[];
+  for(const def of LEVELS[i].pieces){if(!def)continue;const[t,c,r]=def;arr.push({t,c,r});}
+  return arr;
+}
+
+async function runSolve(){
+  if(_solving) return stopSolve();
+  const sol=solve(_pieces);
+  if(!sol){toast("当前局面无解");return;}
+  if(!sol.length){toast("已经通关");return;}
+  _solving=true;
+  $("btnSolve").textContent="⏸ 停止";
+  updateHUD();
+  const sp=()=>800-(+$("speed").value)+80;
+  for(const m of sol){
+    if(!_solving) break;
+    const p=_pieces.find(x=>x.c===m.fc&&x.r===m.fr);
+    if(!p) break;
+    _selected=p.id;refresh();
+    applySlide(p,m.dx,m.dy,m.dist);
+    await sleep(sp());
+  }
+  stopSolve();
+}
+function stopSolve(){_solving=false;$("btnSolve").textContent="▶ 自动求解";updateHUD();}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function hint(){
+  if(_solving) return;
+  const sol=solve(_pieces);
+  if(!sol||!sol.length){toast(sol?"已经通关":"当前局面无解");return;}
+  const m=sol[0];const p=_pieces.find(x=>x.c===m.fc&&x.r===m.fr);
+  _selected=p.id;refresh();
+  const el=board.querySelector('.piece[data-id="'+p.id+'"]');
+  el.classList.remove("hintflash");void el.offsetWidth;el.classList.add("hintflash");
+  const dir={"-1,0":"左","1,0":"右","0,-1":"上","0,1":"下"}[m.dx+","+m.dy];
+  toast("提示：把「"+p.name+"」向"+dir+"移"+m.dist+"格");
+}
+
+// ---- 胜利/存档 ----
+function onWin(){
+  stopTimer();
+  const secs=elapsed();
+  const best=loadBest();
+  const cur={moves:_moves,time:secs};
+  const key=LEVELS[_level].name;
+  let msg="";
+  const b=best[key];
+  if(!b||cur.moves<b.moves||(cur.moves===b.moves&&cur.time<b.time)){
+    best[key]=cur;saveBest(best);msg="🏆 新纪录！";
+  }else{
+    msg="本关最佳："+b.moves+" 步 · "+fmt(b.time);
+  }
+  $("winMoves").textContent=_moves;
+  $("winTime").textContent=fmt(secs);
+  const o=_opt[_level];
+  $("winSub").textContent = o>0 ? (_moves===o?"完美！达到理论最优 "+o+" 步":"理论最优 "+o+" 步") : "恭喜通关";
+  $("winBest").textContent=msg;
+  $("win").classList.add("show");
+  renderLevels();
+}
+function loadBest(){try{return JSON.parse(localStorage.getItem("klotski_best")||"{}");}catch(e){return{};}}
+function saveBest(b){localStorage.setItem("klotski_best",JSON.stringify(b));}
+
+// ---- 关卡列表 ----
+function renderLevels(){
+  const best=loadBest();
+  const box=$("levels");box.innerHTML="";
+  LEVELS.forEach((lv,i)=>{
+    const el=document.createElement("button");
+    el.className="lv"+(i===_level?" on":"");
+    const b=best[lv.name];
+    el.innerHTML=`<div class="nm">${lv.name}</div><div class="ds">${lv.desc}</div>`+
+      (b?`<div class="bst">最佳 ${b.moves} 步 · ${fmt(b.time)}</div>`:"");
+    el.onclick=()=>{if(!_solving){buildLevel(i);closeDrawer();}};
+    box.appendChild(el);
+  });
+}
+
+// ---- toast ----
+let _tt=null;
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");
+  clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove("show"),1800);}
+
+// ---- 主题 ----
+function applyTheme(t){document.documentElement.dataset.theme=t;localStorage.setItem("klotski_theme",t);}
+$("themeBtn").onclick=()=>applyTheme(document.documentElement.dataset.theme==="dark"?"light":"dark");
+
+// ---- 设置抽屉 ----
+function openDrawer(){$("drawer").classList.add("open");$("drawerBg").classList.add("open");}
+function closeDrawer(){$("drawer").classList.remove("open");$("drawerBg").classList.remove("open");}
+$("gearBtn").onclick=openDrawer;
+document.querySelector(".lvbar").onclick=openDrawer;
+$("drawerClose").onclick=closeDrawer;
+$("drawerBg").onclick=closeDrawer;
+
+// ---- 绑定 ----
+$("btnUndo").onclick=undo;
+$("btnReset").onclick=()=>{if(!_solving)buildLevel(_level);};
+$("btnHint").onclick=hint;
+$("btnSolve").onclick=runSolve;
+$("winClose").onclick=()=>{$("win").classList.remove("show");buildLevel(_level);};
+window.addEventListener("resize",()=>{layout();});
+
+// ---- 启动 ----
+applyTheme(localStorage.getItem("klotski_theme")||"light");
+buildLevel(0);
+</script>
+</body>
+</html>
